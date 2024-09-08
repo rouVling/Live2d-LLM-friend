@@ -3,7 +3,9 @@ import { SchemaType, GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from
 import OpenAI from "openai"
 import { zodResponseFormat } from "openai/helpers/zod"
 import { z } from "zod"
+import { ZhipuAI } from "zhipuai-sdk-nodejs-v4"
 
+import { SoVITSConfig } from "./types"
 
 export function getVoiceUsingModelscope(inputText): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -107,24 +109,30 @@ export function getResponse(msgs: DialogMessage[], model: LLMModel, prompt?: str
     if (model.jsonMode) {
       return getJsonResponseGPT(msgs, model.api_key, prompt, jsonPrompt, model.baseUrl, model.model, saveTokenMode)
     } else {
-      return getTextResponseGPT(msgs, model.api_key, prompt, jsonPrompt, model.baseUrl, model.model, saveTokenMode)
+      return getResponseGPT(msgs, model.api_key, prompt, undefined, model.baseUrl, model.model, saveTokenMode)
+      // return getTextResponseGPT(msgs, model.api_key, prompt, undefined, model.baseUrl, model.model, saveTokenMode)
     }
   } else {
     if (model.jsonMode) {
       return getJsonResponseGemini(msgs, model.api_key, prompt, jsonPrompt, model.baseUrl, model.model, saveTokenMode)
     } else {
-      return getTextResponseGemini(msgs, model.api_key, prompt, jsonPrompt, model.baseUrl, model.model, saveTokenMode)
+      return getTextResponseGemini(msgs, model.api_key, prompt, undefined, model.baseUrl, model.model, saveTokenMode)
     }
   }
 }
 
 // @deprecated
-export function getResponseGPT(msgs: DialogMessage[], api_key: string, prompt?: string, saveTokenMode: boolean = true): Promise<string> {
+// export function getResponseGPT(msgs: DialogMessage[], api_key: string, prompt?: string, saveTokenMode: boolean = true): Promise<string> {
+export function getResponseGPT(msgs: DialogMessage[], api_key: string, prompt?: string, jsonPrompt?: string, baseUrl?: string, model?: string, saveTokenMode: boolean = true): Promise<string> {
 
   const contents = prompt ? [{ content: prompt, role: "user" }, ...msgs] : msgs
 
+  let url = baseUrl ? baseUrl : "https://api.openai.com/v1/"
+  url.endsWith("/") ? url = url.slice(0, -1) : url
+  url += "/chat/completions"
+
   return new Promise((resolve, reject) => {
-    fetch("https://api.openai-sb.com/v1/chat/completions", {
+    fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -132,7 +140,7 @@ export function getResponseGPT(msgs: DialogMessage[], api_key: string, prompt?: 
       },
       body: JSON.stringify({
         // "model": "gpt-3.5-turbo",
-        "model": "gpt-4o-mini",
+        "model": model ?? "gpt-4o-mini",
         "messages": contents.map((message) => {
           return {
             role: message.role,
@@ -174,7 +182,7 @@ export function getTextResponseGPT(msgs: DialogMessage[], api_key: string, promp
           role: (message.role === "user") ? "user" : "system",
           content: (message as DialogMessage).img ? (
             ((saveTokenMode && index === msgs.length - 1) || !saveTokenMode) ? (
-              [{type:"image_url", image_url: { url: "data:image/png;base64," + (message as DialogMessage).img } }]
+              [{ type: "image_url", image_url: { url: "data:image/png;base64," + (message as DialogMessage).img } }]
             ) : (
               [{ type: "text", text: message.content }]
             )
@@ -223,7 +231,7 @@ export function getJsonResponseGPT(msgs: DialogMessage[], api_key: string, promp
           role: (message.role === "user") ? "user" : "system",
           content: (message as DialogMessage).img ? (
             ((saveTokenMode && index === msgs.length - 1) || !saveTokenMode) ? (
-              [{ type:"image_url", image_url: { url: "data:image/png;base64," + (message as DialogMessage).img } }]
+              [{ type: "image_url", image_url: { url: "data:image/png;base64," + (message as DialogMessage).img } }]
             ) : (
               [{ type: "text", text: message.content }]
             )
@@ -398,6 +406,57 @@ export function getJsonResponseGemini(msgs: DialogMessage[], api_key: string, pr
     })
   })
 }
+
+export function getVoiceSoVits(url: string, text: string, configs: SoVITSConfig) {
+  return new Promise((resolve, reject) => {
+    fetch(url + "/tts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        text,
+        ...configs,
+      })
+    }).then((res) => {
+      resolve(res)
+    }).catch((err) => {
+      reject(err)
+    })
+  })
+}
+
+// export function getResponseZhipu(msgs: DialogMessage[], model: LLMModel, prompt?: string, jsonPrompt?: string, saveTokenMode: boolean = true): Promise<string> {
+//   const ai = new ZhipuAI({
+//     apiKey: model.api_key,
+//     baseUrl: model.baseUrl
+//   })
+
+//   return new Promise((resolve, reject) => {
+//     let contents: DialogMessage[] = jsonPrompt ? [{ content: jsonPrompt, role: "user" }, ...msgs] : msgs
+//     contents = prompt ? [{ content: prompt, role: "user" }, ...contents] : contents
+
+//     ai.createCompletions({
+//       model: model.model,
+//       tools: [{
+//         type: "web_search",
+//         web_search: {
+//           enable: true
+//         }
+//       }],
+//       messages: (contents.map((message, index) => {
+//         return {
+
+//         }
+//       })
+//       )
+//       }).then((data) => {
+//       resolve(data.response.candidates?.[0]?.content.parts[0].text)
+//     }).catch((err) => {
+//       reject(err)
+//     })
+//   })
+// }
 
 // export function getResponseGemini(msgs: DialogMessage[], api_key: string, prompt?: string): Promise<string> {
 //   const genAI = new GoogleGenerativeAI(api_key)

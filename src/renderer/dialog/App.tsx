@@ -1,6 +1,11 @@
 import React, { useEffect } from "react"
-import { DialogMessage } from "./types"
+import { DialogMessage, SoVITSConfig, xfConfig } from "./types"
 import DialogBubble from "./components"
+
+import LinearProgress from "@mui/material/LinearProgress"
+
+import { client } from "@gradio/client"
+import { prepare_files, handle_file } from "@gradio/client"
 
 // import { Collapse, Paper, Box, TextField, Button } from "@mui/material"
 import { StyleNameContext } from "../style/styleContext"
@@ -16,10 +21,12 @@ import ContentCutIcon from '@mui/icons-material/ContentCut';
 import QuestionMarkIcon from '@mui/icons-material/QuestionMark';
 import PsychologyAltIcon from '@mui/icons-material/PsychologyAlt';
 import SaveIcon from '@mui/icons-material/Save';
+import MicNoneIcon from '@mui/icons-material/MicNone';
+import MicIcon from '@mui/icons-material/Mic';
 
-import { SendRegular, MoreHorizontalRegular, ChevronUpRegular, ScreenCutRegular, DeleteRegular, SettingsRegular, QuestionRegular } from "@fluentui/react-icons"
+import { SendRegular, MoreHorizontalRegular, ChevronUpRegular, ScreenCutRegular, DeleteRegular, SettingsRegular, QuestionRegular, MicRegular } from "@fluentui/react-icons"
 
-import { getResponse, getVoiceLocal, getVoiceOTTO, getResponseGPT, getResponseGemini, getJsonResponseGemini, getJsonResponseGPT, getTextResponseGPT, LLMModel } from "./api"
+import { getResponse, getVoiceLocal, getVoiceOTTO, LLMModel, getVoiceSoVits } from "./api"
 import { ExponentialTimer } from "./utils"
 import { dialog } from "electron"
 import { LAppAdapter } from "../live2d/lappadapter"
@@ -30,9 +37,13 @@ import { ButtonGroup, Slider } from "@mui/material"
 import { ContactlessOutlined } from "@mui/icons-material"
 import { set } from "zod"
 
+import { XfVoiceDictation } from "@muguilin/xf-voice-dictation"
+
 let tmp: any = null
+let voiceTimeout: any = null
 
 const lappAdapter = LAppAdapter.getInstance()
+
 
 export default function App(): JSX.Element {
 
@@ -42,7 +53,7 @@ export default function App(): JSX.Element {
   const [input, setInput] = React.useState<string>("")
   const [messages, setMessages] = React.useState<DialogMessage[]>([])
   const [disableInput, setDisableInput] = React.useState<boolean>(false)
-  const [voiceUrl, setVoiceUrl] = React.useState<string>("")
+  const [voiceUrl, setVoiceUrl] = React.useState<any>(undefined)
   const [replayVoice, setReplayVoice] = React.useState<boolean>(false)
   const [hideChat, setHideChat] = React.useState<boolean>(false)
   const [expTimer, setExpTimer] = React.useState<ExponentialTimer | null>(null)
@@ -53,6 +64,7 @@ export default function App(): JSX.Element {
   const [hiddenPrompt, setHiddenPrompt] = React.useState<string>("")
 
   const [saveOnDelete, setSaveOnDelete] = React.useState<boolean>(false)
+  const [enableMicrophone, setEnableMicrophone] = React.useState<boolean>(false)
 
   const [slideValue, setSlideValue] = React.useState<number>(1)
 
@@ -63,11 +75,70 @@ export default function App(): JSX.Element {
     "chatGLM": { model: "glm-4v", api_key: "", sdk: "openai", jsonMode: true },
   })
 
+  const [SoVitsConfig, setSoVitsConfig] = React.useState<SoVITSConfig>({
+    "text_lang": "zh",
+    "ref_audio_path": "G:/GPT-SoVITS-v2-240821/myvoice/moira.wav",
+    "aux_ref_audio_paths": [],
+    "prompt_text": "为了物质的优越性而争斗真是让人厌烦。精神上的优越性，那才是我最感 兴趣的东西。",
+    "prompt_lang": "zh",
+    "top_k": 5,
+    "top_p": 1,
+    "temperature": 1,
+    "text_split_method": "cut0",
+    "batch_size": 1,
+    "batch_threshold": 0.75,
+    "split_bucket": true,
+    "return_fragment": false,
+    "speed_factor": 1.0,
+    "streaming_mode": false,
+    "seed": -1,
+    "parallel_infer": true,
+    "repetition_penalty": 1.35,
+    "media_type": "wav",
+  })
+
+  const [xfVoiceConfig, setXfVoiceConfig] = React.useState<xfConfig>({
+    APPID: "",
+    APISecret: "",
+    APIKey: "",
+  })
+
   const [modelExpressionDesc, setModelExpressionDesc] = React.useState<string>("")
   const [modelMotionDesc, setModelMotionDesc] = React.useState<string>("")
   const [modelDesc, setModelDesc] = React.useState<string>("")
 
   const [styleName, setStyleName] = React.useState<string>("default")
+
+  // private state
+  const [voiceOn, setVoiceOn] = React.useState<boolean>(false)
+
+  // variables
+  let xfVoice = React.useRef<XfVoiceDictation | null>(null)
+  useEffect(() => {
+    xfVoice.current = new XfVoiceDictation({
+      ...xfVoiceConfig,
+      onWillStatusChange: (oldStatus, newStatus) => {
+        console.log("识别状态: ", oldStatus, newStatus)
+        if (newStatus === "init") {
+          setDisableInput(true)
+          setVoiceOn(true)
+          voiceTimeout = setTimeout(() => { xfVoice.current!.stop(); setDisableInput(false); setVoiceOn(false) }, 3000)
+        } else if (newStatus === "ing") {
+
+        } else if (newStatus === "end") {
+          setDisableInput(false)
+          setVoiceOn(false)
+        }
+      },
+      onTextChange: (text) => {
+        if (voiceTimeout) {
+          clearTimeout(voiceTimeout)
+        }
+        voiceTimeout = setTimeout(() => { xfVoice.current!.stop(); setDisableInput(false); setVoiceOn(false) }, 3000)
+        setInput(text)
+      }
+    })
+  }, [xfVoiceConfig])
 
   // IPC event listeners
 
@@ -92,7 +163,30 @@ export default function App(): JSX.Element {
       window.api.onUpdateLLMConfigs(() => { })
       window.api.onUpdateLLMModelName(() => { })
     }
-  } , [])
+  }, [])
+
+  useEffect(() => {
+    window.api.onUpdateSoVitsConfigs((value: any) => {
+      if (value.current !== undefined) {
+        setSoVitsConfig(value.configs[value.current])
+      }
+    })
+    return () => {
+      window.api.onUpdateSoVitsConfigs(() => { })
+    }
+  }, [])
+
+  useEffect(() => {
+    window.api.onUpdate("enableMicrophone", (value: boolean) => {
+      setEnableMicrophone(value)
+      if (!value) {
+        xfVoice.stop()
+      }
+    })
+    window.api.onUpdate("xfVoiceConfig", (value: any) => {
+      setXfVoiceConfig(value)
+    })
+  }, [])
 
   useEffect(() => {
     window.api.onUpdateTokenSaveMode((value: boolean) => {
@@ -240,16 +334,27 @@ export default function App(): JSX.Element {
     })
   }, [])
   useEffect(() => {
-    window.api.getStore("styleName").then((value: string) => {
-      setStyleName(value)
+    window.api.getStore("SoVitsConfigs").then((value: any) => {
+      setSoVitsConfig(value.configs[value.current])
+    })
+  }, [])
+  useEffect(() => {
+    window.api.getStore("xfVoiceConfig").then((value: any) => {
+      setXfVoiceConfig(value)
     })
   }, [])
 
   useEffect(() => {
-    const audio = new Audio(voiceUrl)
-    audio.oncanplay = () => {
-      audio.play()
-    }
+    window.api.getStore("styleName").then((value: string) => {
+      setStyleName(value ?? "default")
+    })
+  }, [])
+
+  useEffect(() => {
+    // const audio = new Audio(voiceUrl)
+    // audio.oncanplay = () => {
+    // if (voiceUrl) { voiceUrl.play() }
+    // }
   }, [voiceUrl, replayVoice])
 
   // JavaScript event listeners
@@ -272,9 +377,9 @@ export default function App(): JSX.Element {
       setIgnoreMouseEvent(false)
     })
     dragBar?.addEventListener("pointerleave", (e: PointerEvent) => {
-      if(e.relatedTarget === null) {
+      if (e.relatedTarget === null) {
         return
-      }else {
+      } else {
         const bar = dragBar.children[0] as HTMLElement
         bar.style.borderLeftColor = "var(--border-color)"
         bar.style.borderTopColor = "var(--border-color)"
@@ -291,20 +396,23 @@ export default function App(): JSX.Element {
     const expTimer = new ExponentialTimer(() => {
       // console.log("interval")
 
-      getResponseGPT(
+      getResponse(
         [
           ...messages,
           { content: "用户已经一段时间没理你了，作为桌宠，请结合前面聊天内容，说点什么引起他的注意吧", role: "user" }  // modify it later
         ],
-        apikey
+        llmConfigs[llmModelName],
+        prompt + "以往对话总结:\n" + hiddenPrompt,
+        "请在 responseText 中回复用户的对话，回复时请注意 prompt。" + "你使用live2d 作为形象，其描述如下:\n" + modelDesc + "\n请在 expression 中选择合适的表情（可为空）。表情选项及描述如下：\n" + modelExpressionDesc + "\n请在delayTime中填写表情持续时间(毫秒)\n" + "\n请选择合适的动作组，以及动作在组中的序号(可为空)。动作选项及描述如下:\n" + modelMotionDesc,
+        tokenSaveMode
       ).then((response) => {
-        console.log("interval response: ", response)
-
+        // console.log("interval response: ", response)
+        setMessages((prev) => [...prev, { content: response, role: "assistant" }])
         // getVoiceLocal(response).then((url) => {
-        getVoiceOTTO(response).then((url) => {
-          setVoiceUrl(url)
-          setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: new Audio(url), voiceType: "element" }])
-        })
+        // getVoiceOTTO(response).then((url) => {
+        //   setVoiceUrl(url)
+        //   setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: new Audio(url), voiceType: "element" }])
+        // })
       }).catch((err) => {
         console.log(err)
       })
@@ -352,7 +460,7 @@ export default function App(): JSX.Element {
       getResponse(
         (img === "") ? [...messages, { content: input, role: "user" }] : [...messages, { content: input, role: "user", img: img }],
         llmConfigs[llmModelName],
-        prompt + "以往对话总结:\n" + hiddenPrompt,
+        prompt + ((hiddenPrompt === "") ? "" : "\n以往对话总结:\n" + hiddenPrompt),
         "请在 responseText 中回复用户的对话，回复时请注意 prompt。" + "你使用live2d 作为形象，其描述如下:\n" + modelDesc + "\n请在 expression 中选择合适的表情（可为空）。表情选项及描述如下：\n" + modelExpressionDesc + "\n请在delayTime中填写表情持续时间(毫秒)\n" + "\n请选择合适的动作组，以及动作在组中的序号(可为空)。动作选项及描述如下:\n" + modelMotionDesc,
         tokenSaveMode
       ).then((response) => {
@@ -374,13 +482,49 @@ export default function App(): JSX.Element {
         }
 
         // getVoiceLocal(response).then((url) => {
-        getVoiceOTTO(response).then((url) => {
-          setVoiceUrl(url)
-          setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: new Audio(url), voiceType: "element" }])
-        }).catch((err) => {
-          console.log(err)
-          setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: undefined }])
-        })
+        // getVoiceOTTO(response).then((url) => {
+        //   setVoiceUrl(url)
+        //   setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: new Audio(url), voiceType: "element" }])
+        // }).catch((err) => {
+        //   console.log(err)
+        //   setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: undefined }])
+        // })
+        getVoiceSoVits("http://localhost:9880", response, SoVitsConfig)
+          .then(response => response.arrayBuffer())
+          .then(arrayBuffer => {
+            // 创建 AudioContext
+            const context = new AudioContext();
+
+            // 解码音频流
+            context.decodeAudioData(arrayBuffer, buffer => {
+              // 创建 AudioBufferSourceNode
+              const source = context.createBufferSource();
+              source.buffer = buffer;
+
+              // 创建 AudioDestinationNode
+              const destination = context.createMediaStreamDestination();
+
+              // 将 AudioBufferSourceNode 连接到 AudioDestinationNode
+              source.connect(destination);
+
+              // 播放音频
+              source.start();
+
+              // 获取媒体流
+              const mediaStream = destination.stream;
+
+              // 创建 Audio 标签并播放媒体流
+              // const audio = document.createElement('audio');
+              const audio = new Audio();
+              audio.srcObject = mediaStream;
+              console.log("audio: ", audio.srcObject)
+              setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: arrayBuffer, voiceType: "buffer" }])
+              audio.play();
+              // setVoiceUrl(audio)
+            });
+          }).catch((err) => {
+            setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: undefined }])
+          });
 
       }).catch((err) => { console.log(err) })
 
@@ -456,7 +600,7 @@ export default function App(): JSX.Element {
               if (saveOnDelete && messages.length > 0) {
                 getResponse(
                   [...messages, { role: "user", content: "你是一个智能桌面助手内置的AI。这条消息发送自智能助手系统。用户即将关闭此次对话，并且，用户可能会隔较长时间再进行对话。你的目标是对以往对话内容进行提炼，总结自己的形象，用户的形象，以及在回答中需要注意的内容，以及你想提醒自己的内容作为下一次prompt。请你作为一个总结系统和 prompt 专家，撰写下一次对话时的prompt。请保持描述简洁精确，内容精要。注意，你这次回答的是所有内容会直接记录为下一次prompt" }],
-                  {...llmConfigs[llmModelName], jsonMode: false},
+                  { ...llmConfigs[llmModelName], jsonMode: false },
                   prompt + "以往对话总结:\n" + hiddenPrompt,
                   undefined,
                   tokenSaveMode
@@ -485,48 +629,62 @@ export default function App(): JSX.Element {
             {styleName === "default" && <SettingsIcon />}
           </button>
 
+          <button
+            className={styleName + "-miniButton"}
+            // id="settingButton"
+            onClick={() => { voiceOn ? xfVoice.current!.stop() : xfVoice.current!.start() }}
+            onPointerOver={() => { setIgnoreMouseEvent(false) }}
+            onPointerOut={() => { setIgnoreMouseEvent(true) }}
+            title="Voice"
+          >
+            {styleName === "fluent" && <MicRegular />}
+            {styleName === "default" && (voiceOn ? <MicIcon /> : <MicNoneIcon />)}
+          </button>
+
           {/* <button
             className={styleName + "-miniButton"}
             onClick={() => {
+              // navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+              //   // save the stream
+              //   tmp = stream
+              //   // create a media recorder
+              //   const mediaRecorder = new MediaRecorder(stream)
+              //   // tmp = mediaRecorder
+              //   // create a data array
+              //   const chunks: any = []
+              //   // when the media recorder receives data
+              //   mediaRecorder.ondataavailable = (e) => {
+              //     // add the data to the array
+              //     chunks.push(e.data)
+              //   }
+              //   // when the media recorder stops
+              //   mediaRecorder.onstop = () => {
+              //     // create a blob from the data
+              //     const blob = new Blob(chunks, { type: "audio/ogg; codecs=opus" })
+              //     // create a url from the blob
+              //     const url = URL.createObjectURL(blob)
+              //     // set the url to the audio element
+              //     setVoiceUrl(url)
+              //     // create a new audio element
+              //     const audio = new Audio(url)
+              //     // play the audio
+              //     audio.play()
+              //   }
 
-              navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-                // save the stream
-                tmp = stream
-                // create a media recorder
-                const mediaRecorder = new MediaRecorder(stream)
-                // tmp = mediaRecorder
-                // create a data array
-                const chunks: any = []
-                // when the media recorder receives data
-                mediaRecorder.ondataavailable = (e) => {
-                  // add the data to the array
-                  chunks.push(e.data)
-                }
-                // when the media recorder stops
-                mediaRecorder.onstop = () => {
-                  // create a blob from the data
-                  const blob = new Blob(chunks, { type: "audio/ogg; codecs=opus" })
-                  // create a url from the blob
-                  const url = URL.createObjectURL(blob)
-                  // set the url to the audio element
-                  setVoiceUrl(url)
-                  // create a new audio element
-                  const audio = new Audio(url)
-                  // play the audio
-                  audio.play()
-                }
+              //   setTimeout(() => {
+              //     // stop the media recorder
+              //     mediaRecorder.stop()
+              //     // stop the stream
+              //     stream.getTracks().forEach((track) => {
+              //       track.stop()
+              //     })
+              //   }, 5000)
+              // })
 
-                setTimeout(() => {
-                  // stop the media recorder
-                  mediaRecorder.stop()
-                  // stop the stream
-                  stream.getTracks().forEach((track) => {
-                    track.stop()
-                  })
-                }, 5000)
-              })
-
+              // fetch("http://localhost:")
+              // import { client } from "@gradio/client";
             }}
+
             onPointerOver={() => { setIgnoreMouseEvent(false) }}
             onPointerOut={() => { setIgnoreMouseEvent(true) }}
             title="Model"
@@ -551,6 +709,15 @@ export default function App(): JSX.Element {
           </button> */}
 
         </div>
+        {/* {
+          styleName === "default" &&
+          <div style={{
+            marginTop: "-5px",
+            marginBottom: "5px",
+            height: "0px",
+            width: "90%",
+          }}><LinearProgress variant="determinate" value={30} /></div>
+        } */}
         <div
           className={styleName + "-inputGroup"}
           style={{ display: "flex", flexDirection: "row" }}

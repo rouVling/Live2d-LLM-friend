@@ -47,6 +47,10 @@
     backdrop-filter: blur(3px);
 }
 
+.default-userInput:disabled {
+    background-color: rgba(60, 60, 60, 0.8);
+}
+
 .default-userInput:focus {
     border-color: #76b9ed;
     outline: none;
@@ -114,7 +118,7 @@
     margin: 3px;
     padding: 3px;
     /* border-radius: 10px; */
-    pointer-events: none;
+    pointer-events: all;
     line-break: anywhere;
     border: solid 1px var(--line-grey);
     /* font-family: "华文楷体"; */

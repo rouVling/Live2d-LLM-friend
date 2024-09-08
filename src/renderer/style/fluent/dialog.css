@@ -139,6 +139,11 @@
     /* font-family: "华文楷体"; */
 }
 
+.fluent-dialogBubble svg {
+    pointer-events: all;
+}
+
+
 .fluent-userBubble {
     justify-content: flex-end;
     margin-left: 30%;

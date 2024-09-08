@@ -22,7 +22,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     transparent: true,
     // titleBarStyle: 'hidden',
-    titleBarStyle: 'hiddenInset',
+    // titleBarStyle: 'hiddenInset',
     alwaysOnTop: true,
     frame: false,
     // resizable: false,
@@ -96,6 +96,15 @@ function createWindow(): void {
         break
       case "llmModelName":
         mainWindow.webContents.send('update-llmModelName', value)
+        break
+      case "SoVitsConfigs":
+        mainWindow.webContents.send('update-SoVitsConfigs', value)
+        break
+      case "enableMicrophone":
+        mainWindow.webContents.send('update-enableMicrophone', value)
+        break
+      case "xfVoiceConfig":
+        mainWindow.webContents.send('update-xfVoiceConfig', value)
         break
     }
   })
