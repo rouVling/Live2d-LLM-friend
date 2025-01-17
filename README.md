@@ -4,6 +4,14 @@
 
 ![alt text](./readme-src/appearance.png)
 
+## 快速安装
+
+[https://github.com/rouVling/Live2d-LLM-friend/releases](https://github.com/rouVling/Live2d-LLM-friend/releases)
+
+其中提供了 Windows 版本的安装包（rar）和 MacOS 的安装包（dmg）
+
+## 功能
+
 目前支持的特性：
 
 - 点击穿透
