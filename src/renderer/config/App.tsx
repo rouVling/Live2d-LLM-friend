@@ -30,7 +30,7 @@ import { SettingsRegular } from "@fluentui/react-icons";
 import { LLMModel } from "../dialog/api";
 import { StyleNameContext } from "../style/styleContext";
 
-import { SoVITSConfig } from "../dialog/types";
+import { SoVITSConfig, xfConfig } from "../dialog/types";
 import { set } from "zod";
 import { config } from "process";
 
@@ -61,7 +61,10 @@ export default function App() {
   const [prompt, setPrompt] = useState("")
   const [modelPath, setModelPath] = useState("")
   const [modelName, setModelName] = useState("")
+
+  // privacy
   const [saveOnDelete, setSaveOnDelete] = useState(false)
+  const [enableMicrophone, setEnableMicrophone] = useState(false)
 
   const [tabNum, setTabNum] = useState(0)
 
@@ -99,6 +102,11 @@ export default function App() {
   })
   const [currentSoVitsConfig, setCurrentSoVitsConfig] = useState<SoVITSConfig>(SoVitsConfigs.configs[SoVitsConfigs.current])
   const [newSoVitsConfigName, setNewSoVitsConfigName] = useState<string>("")
+  const [xfVoiceConfig, setXfVoiceConfig] = useState<xfConfig>({
+    APPID: "",
+    APIKey: "",
+    APISecret: ""
+  })
 
   // const [lappAdapter, setLappAdapter] = useState(undefined)
 
@@ -130,6 +138,13 @@ export default function App() {
         setSoVitsConfigs(value)
         setCurrentSoVitsConfig(value.configs[value.current])
         console.log(value.configs[value.current])
+      }
+    })
+  }, [])
+  useEffect(() => {
+    window.api.getStore("xfVoiceConfig").then((value: any) => {
+      if (value !== undefined) {
+        setXfVoiceConfig(value)
       }
     })
   }, [])
@@ -168,6 +183,12 @@ export default function App() {
   useEffect(() => {
     window.api.getStore("saveOnDelete").then((value: boolean) => {
       setSaveOnDelete(value ? value : false)
+    })
+  }, [])
+
+  useEffect(() => {
+    window.api.getStore("enableMicrophone").then((value: boolean) => {
+      setEnableMicrophone(value ? value : false)
     })
   }, [])
 
@@ -285,7 +306,7 @@ export default function App() {
         <div className={"leftContainerItem" + ((tabNum == 3) ? " highlight" : "")} onClick={() => setTabNum(3)}>
           <div className="highlightBar" />
           <RecordVoiceOverIcon />
-          <div>TTS</div>
+          <div>TTS & Voice</div>
         </div>
 
         <div className={"leftContainerItem" + ((tabNum == 4) ? " highlight" : "")} onClick={() => setTabNum(4)}>
@@ -421,6 +442,7 @@ export default function App() {
           <div className="rightContainerTitle">隐私</div>
           <BoolItem icon={<ChatBubbleIcon />} mainText="启用主动对话" description="启用后 AI 会不定时主动发起对话，可能会消耗更多 token" type="bool" callback={() => { setActiveChat((val) => { !val }) }} content={activeChat} />
           <BoolItem icon={<SaveIcon />} mainText="保存对话摘要" description="会增加 token 消耗" type="bool" callback={(val) => { setSaveOnDelete(val); window.api.setStore("saveOnDelete", val); }} content={saveOnDelete} />
+          {/* <BoolItem icon={<RecordVoiceOverIcon />} mainText="启用麦克风" description="启用后可以使用语音功能" type="bool" callback={(val) => { setEnableMicrophone(val); window.api.setStore("enableMicrophone", val); }} content={enableMicrophone} /> */}
         </div>
 
         <div hidden={tabNum !== 2}>
@@ -740,38 +762,58 @@ export default function App() {
             value: newSoVitsConfigName, buttonText: "增加", action: () => {
               if (newSoVitsConfigName === "") return
               const newConfig = {
-                  current: newSoVitsConfigName,
-                  configs: {
-                    ...SoVitsConfigs.configs,
-                    [newSoVitsConfigName]: {
-                      "text_lang": "zh",
-                      "ref_audio_path": "C:/fakepath/audio.wav",
-                      "aux_ref_audio_paths": [],
-                      "prompt_text": "",
-                      "prompt_lang": "zh",
-                      "top_k": 5,
-                      "top_p": 1,
-                      "temperature": 1,
-                      "text_split_method": "cut0",  // fixed
-                      "batch_size": 1,  // fixed
-                      "batch_threshold": 0.75, // fixed
-                      "split_bucket": true, // fixed
-                      "return_fragment": false, // fixed
-                      "speed_factor": 1.0, // fixed
-                      "streaming_mode": false, // fixed
-                      "seed": -1, // fixed
-                      "parallel_infer": true, // fixed
-                      "repetition_penalty": 1.35, // fixed
-                      "media_type": "wav",    // not supported for now
-                    }
+                current: newSoVitsConfigName,
+                configs: {
+                  ...SoVitsConfigs.configs,
+                  [newSoVitsConfigName]: {
+                    "text_lang": "zh",
+                    "ref_audio_path": "C:/fakepath/audio.wav",
+                    "aux_ref_audio_paths": [],
+                    "prompt_text": "",
+                    "prompt_lang": "zh",
+                    "top_k": 5,
+                    "top_p": 1,
+                    "temperature": 1,
+                    "text_split_method": "cut0",  // fixed
+                    "batch_size": 1,  // fixed
+                    "batch_threshold": 0.75, // fixed
+                    "split_bucket": true, // fixed
+                    "return_fragment": false, // fixed
+                    "speed_factor": 1.0, // fixed
+                    "streaming_mode": false, // fixed
+                    "seed": -1, // fixed
+                    "parallel_infer": true, // fixed
+                    "repetition_penalty": 1.35, // fixed
+                    "media_type": "wav",    // not supported for now
                   }
                 }
+              }
               setSoVitsConfigs(newConfig)
               setCurrentSoVitsConfig(newConfig.configs[newSoVitsConfigName])
               setNewSoVitsConfigName("")
               window.api.setStore("SoVitsConfigs", newConfig)
             }
-          }}/>
+          }} />
+
+          <div className="rightContainerTitle">语音识别</div>
+
+          <TextFieldItem icon={<KeyIcon />} mainText="APPID" description="APPID" type="input" callback={(val) => {
+            const newConfig = { ...xfVoiceConfig, APPID: val }
+            setXfVoiceConfig(newConfig)
+            window.api.setStore("xfVoiceConfig", newConfig)
+          }} content={xfVoiceConfig.APPID} />
+
+          <TextFieldItem icon={<KeyIcon />} mainText="API Key" description="API Key" type="input" callback={(val) => {
+            const newConfig = { ...xfVoiceConfig, APIKey: val }
+            setXfVoiceConfig(newConfig)
+            window.api.setStore("xfVoiceConfig", newConfig)
+          }} content={xfVoiceConfig.APIKey} />
+
+          <TextFieldItem icon={<KeyIcon />} mainText="API Secret" description="API Secret" type="input" callback={(val) => {
+            const newConfig = { ...xfVoiceConfig, APISecret: val }
+            setXfVoiceConfig(newConfig)
+            window.api.setStore("xfVoiceConfig", newConfig)
+          }} content={xfVoiceConfig.APISecret} />
 
 
           {/* <TextFieldItem icon={<KeyIcon />} mainText="top_k" description="top_k" type="input" callback={(val) => {
@@ -790,14 +832,15 @@ export default function App() {
             window.api.setStore("SoVitsConfigs", SoVitsConfigs)
           }} content={currentSoVitsConfig.top_k.toString()} /> */}
 
+
         </div>
 
         <div hidden={tabNum !== 4}>
           <div className="rightContainerTitle">信息</div>
-          <div> Serika 是一款基于 live2d 的桌宠项目。配合 GPT-SoVits 使用 api.py 启动的后台服务程序体验更佳。</div>
+          <div> Serika 是一款基于 live2d 的桌宠项目。配合 GPT-SoVits 使用 api_v2.py 启动的后台服务程序体验更佳。</div>
           {/* <div>Serika Enchance 包括文字转语音等功能，您也可以自定义语音转文字服务 api 路径</div> */}
           <br></br>
-          <div>项目地址：<a href="https://github.com/rouVling/serika">https://github.com/rouVling/serika</a></div>
+          <div>项目地址：<a href="https://github.com/rouVling/Live2d-LLM-friend">https://github.com/rouVling/Live2d-LLM-friend</a></div>
         </div>
 
       </div>

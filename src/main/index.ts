@@ -22,7 +22,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     transparent: true,
     // titleBarStyle: 'hidden',
-    titleBarStyle: 'hiddenInset',
+    // titleBarStyle: 'hiddenInset',
     alwaysOnTop: true,
     frame: false,
     // resizable: false,
@@ -58,9 +58,9 @@ function createWindow(): void {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/index_l2d.html')
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index_l2d.html'))
   }
 
   const screenshot = new Screenshots()
@@ -96,6 +96,15 @@ function createWindow(): void {
         break
       case "llmModelName":
         mainWindow.webContents.send('update-llmModelName', value)
+        break
+      case "SoVitsConfigs":
+        mainWindow.webContents.send('update-SoVitsConfigs', value)
+        break
+      case "enableMicrophone":
+        mainWindow.webContents.send('update-enableMicrophone', value)
+        break
+      case "xfVoiceConfig":
+        mainWindow.webContents.send('update-xfVoiceConfig', value)
         break
     }
   })

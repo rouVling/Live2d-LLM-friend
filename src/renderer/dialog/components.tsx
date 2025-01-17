@@ -36,6 +36,36 @@ export default function DialogBubble(props: DialogMessage): JSX.Element {
         else if (props.voiceType === "element") {
           (props.voiceUrl as HTMLAudioElement).play()
         }
+        else if (props.voiceType === "buffer") {
+          // (props.voiceUrl as AudioContext).resume()
+          const context: AudioContext = new AudioContext();
+            context.decodeAudioData(props.voiceUrl, buffer => {
+              // 创建 AudioBufferSourceNode
+              const source = context.createBufferSource();
+              source.buffer = buffer;
+
+              // 创建 AudioDestinationNode
+              const destination = context.createMediaStreamDestination();
+
+              // 将 AudioBufferSourceNode 连接到 AudioDestinationNode
+              source.connect(destination);
+
+              // 播放音频
+              source.start();
+
+              // 获取媒体流
+              const mediaStream = destination.stream;
+
+              // 创建 Audio 标签并播放媒体流
+              // const audio = document.createElement('audio');
+              const audio = new Audio();
+              audio.srcObject = mediaStream;
+              console.log("audio: ", audio.srcObject)
+              // setMessages((prev) => [...prev, { content: response, role: "assistant", voiceUrl: context, voiceType: "context" }])
+              audio.play();
+              // setVoiceUrl(audio)
+            });
+        }
       }} /> : undefined}
     </div>
   } else {

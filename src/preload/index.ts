@@ -26,6 +26,11 @@ const api = {
   onUpdatePrompt: (callback: (value: string) => void) => ipcRenderer.on('update-prompt', (_, value) => callback(value)),
   onUpdateChara: (callback: (folder: string, chara: string) => void) => ipcRenderer.on('update-chara', (_, folder, chara) => callback(folder, chara)),
   onUpdateStyleName: (callback: (value: string) => void) => ipcRenderer.on('update-styleName', (_, value) => callback(value)),
+  onUpdateSoVitsConfigs: (callback: (value: string) => void) => ipcRenderer.on('update-SoVitsConfigs', (_, value) => callback(value)),
+
+  onUpdate(key: string, callback: (value: string) => void) {
+    ipcRenderer.on(`update-${key}`, (_, value) => callback(value))
+  },
 
   requestModel: (value: any) => ipcRenderer.send("requestModel", value),
   onModelValueRequested: (callback: (value: string) => void) => ipcRenderer.on("modelValueRequested", (_, value) => callback(value)),
