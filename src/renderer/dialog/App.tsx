@@ -40,7 +40,7 @@ import { set } from "zod"
 import { XfVoiceDictation } from "@muguilin/xf-voice-dictation"
 
 let tmp: any = null
-let voiceTimeout: any = null
+// let voiceTimeout: any = null
 
 const lappAdapter = LAppAdapter.getInstance()
 
@@ -114,6 +114,7 @@ export default function App(): JSX.Element {
 
   // variables
   let xfVoice = React.useRef<XfVoiceDictation | null>(null)
+  let voiceTimeout = React.useRef<any>(null)
   useEffect(() => {
     xfVoice.current = new XfVoiceDictation({
       ...xfVoiceConfig,
@@ -121,20 +122,34 @@ export default function App(): JSX.Element {
         console.log("识别状态: ", oldStatus, newStatus)
         if (newStatus === "init") {
           setDisableInput(true)
-          setVoiceOn(true)
-          voiceTimeout = setTimeout(() => { xfVoice.current!.stop(); setDisableInput(false); setVoiceOn(false) }, 3000)
+          // setVoiceOn(true)
+          // voiceTimeout.current = setTimeout(() => { xfVoice.current!.stop(); setDisableInput(false); setVoiceOn(false) }, 10000)
         } else if (newStatus === "ing") {
 
         } else if (newStatus === "end") {
-          setDisableInput(false)
-          setVoiceOn(false)
+          if (voiceOn) {
+            xfVoice.current!.start()
+          } else {
+            setDisableInput(false)
+          }
+          // setDisableInput(false)
+          // setVoiceOn(false)
+          // if (voiceTimeout.current) {
+          //   clearTimeout(voiceTimeout.current)
+          //   voiceTimeout.current = null
+          // }
         }
       },
       onTextChange: (text) => {
-        if (voiceTimeout) {
-          clearTimeout(voiceTimeout)
+        if (text) {
+          console.log(voiceTimeout.current)
+          if (voiceTimeout.current) {
+            clearTimeout(voiceTimeout.current)
+          }
+          console.log("cleared, ", voiceTimeout.current)
+          voiceTimeout.current = null
         }
-        voiceTimeout = setTimeout(() => { xfVoice.current!.stop(); setDisableInput(false); setVoiceOn(false) }, 3000)
+        // voiceTimeout.current = setTimeout(() => { xfVoice.current!.stop(); setDisableInput(false); setVoiceOn(false) }, 10000)
         setInput(text)
       }
     })
@@ -460,8 +475,10 @@ export default function App(): JSX.Element {
       getResponse(
         (img === "") ? [...messages, { content: input, role: "user" }] : [...messages, { content: input, role: "user", img: img }],
         llmConfigs[llmModelName],
-        prompt + ((hiddenPrompt === "") ? "" : "\n以往对话总结:\n" + hiddenPrompt),
-        "请在 responseText 中回复用户的对话，回复时请注意 prompt。" + "你使用live2d 作为形象，其描述如下:\n" + modelDesc + "\n请在 expression 中选择合适的表情（可为空）。表情选项及描述如下：\n" + modelExpressionDesc + "\n请在delayTime中填写表情持续时间(毫秒)\n" + "\n请选择合适的动作组，以及动作在组中的序号(可为空)。动作选项及描述如下:\n" + modelMotionDesc,
+        // prompt + ((hiddenPrompt === "") ? "" : "\n以往对话总结:\n" + hiddenPrompt),
+        "",
+        // "请在 responseText 中回复用户的对话，回复时请注意 prompt。" + "你使用live2d 作为形象，其描述如下:\n" + modelDesc + "\n请在 expression 中选择合适的表情（可为空）。表情选项及描述如下：\n" + modelExpressionDesc + "\n请在delayTime中填写表情持续时间(毫秒)\n" + "\n请选择合适的动作组，以及动作在组中的序号(可为空)。动作选项及描述如下:\n" + modelMotionDesc,
+        "",
         tokenSaveMode
       ).then((response) => {
 
@@ -632,7 +649,14 @@ export default function App(): JSX.Element {
           <button
             className={styleName + "-miniButton"}
             // id="settingButton"
-            onClick={() => { voiceOn ? xfVoice.current!.stop() : xfVoice.current!.start() }}
+            onClick={() => {
+              setVoiceOn((on) => !on)
+              if (voiceOn) {
+                xfVoice.current!.stop()
+              } else {
+                xfVoice.current!.start()
+              }
+            }}
             onPointerOver={() => { setIgnoreMouseEvent(false) }}
             onPointerOut={() => { setIgnoreMouseEvent(true) }}
             title="Voice"
@@ -741,7 +765,10 @@ export default function App(): JSX.Element {
             onKeyDown={handleEnter}
             disabled={disableInput}
             onPaste={(e) => {
-              if (e.clipboardData.files[0].type === "image/png") {
+              if (
+                e.clipboardData.files[0].type === "image/png" ||
+                e.clipboardData.files[0].type === "image/jpeg"
+              ) {
                 e.clipboardData.files[0].arrayBuffer().then((buffer) => {
                   setImg(getBase64(new Uint8Array(buffer)))
                 })
