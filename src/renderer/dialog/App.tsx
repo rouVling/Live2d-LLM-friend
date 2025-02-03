@@ -77,9 +77,9 @@ export default function App(): JSX.Element {
 
   const [SoVitsConfig, setSoVitsConfig] = React.useState<SoVITSConfig>({
     "text_lang": "zh",
-    "ref_audio_path": "G:/GPT-SoVITS-v2-240821/myvoice/moira.wav",
+    "ref_audio_path": "",
     "aux_ref_audio_paths": [],
-    "prompt_text": "为了物质的优越性而争斗真是让人厌烦。精神上的优越性，那才是我最感 兴趣的东西。",
+    "prompt_text": "",
     "prompt_lang": "zh",
     "top_k": 5,
     "top_p": 1,
@@ -360,17 +360,28 @@ export default function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    window.api.getStore("SoVitsConfigs").then((value: any) => {
+      setSoVitsConfig(value.configs[value.current])
+    })
+  }, [])
+  useEffect(() => {
+    window.api.getStore("xfVoiceConfig").then((value: any) => {
+      setXfVoiceConfig(value)
+    })
+  }, [])
+
+  useEffect(() => {
     window.api.getStore("styleName").then((value: string) => {
       setStyleName(value ?? "default")
     })
   }, [])
 
-  useEffect(() => {
+  // useEffect(() => {
     // const audio = new Audio(voiceUrl)
     // audio.oncanplay = () => {
     // if (voiceUrl) { voiceUrl.play() }
     // }
-  }, [voiceUrl, replayVoice])
+  // }, [voiceUrl, replayVoice])
 
   // JavaScript event listeners
 

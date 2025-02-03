@@ -795,7 +795,7 @@ export default function App() {
             }
           }} />
 
-          <div className="rightContainerTitle">语音合成</div>
+          <div className="rightContainerTitle">语音识别</div>
 
           <TextFieldItem icon={<KeyIcon />} mainText="APPID" description="APPID" type="input" callback={(val) => {
             const newConfig = { ...xfVoiceConfig, APPID: val }
@@ -837,10 +837,10 @@ export default function App() {
 
         <div hidden={tabNum !== 4}>
           <div className="rightContainerTitle">信息</div>
-          <div> Serika 是一款基于 live2d 的桌宠项目。配合 GPT-SoVits 使用 api.py 启动的后台服务程序体验更佳。</div>
+          <div> Serika 是一款基于 live2d 的桌宠项目。配合 GPT-SoVits 使用 api_v2.py 启动的后台服务程序体验更佳。</div>
           {/* <div>Serika Enchance 包括文字转语音等功能，您也可以自定义语音转文字服务 api 路径</div> */}
           <br></br>
-          <div>项目地址：<a href="https://github.com/rouVling/serika">https://github.com/rouVling/serika</a></div>
+          <div>项目地址：<a href="https://github.com/rouVling/Live2d-LLM-friend">https://github.com/rouVling/Live2d-LLM-friend</a></div>
         </div>
 
       </div>

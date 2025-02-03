@@ -4,7 +4,7 @@
   "description": "A desktop AI assistant",
   "main": "./out/main/index.js",
   "author": "example.com",
-  "homepage": "https://github.com/rouVling/Serika.git",
+  "homepage": "https://github.com/rouVling/Live2d-LLM-friend.git",
   "type": "module",
   "scripts": {
     "format": "prettier --write .",
@@ -38,6 +38,7 @@
     "electron-updater": "^6.2.1",
     "mui-markdown": "^1.2.1",
     "openai": "^4.56.0",
+    "three": "^0.172.0",
     "zhipuai": "^2.0.0",
     "zhipuai-sdk-nodejs-v4": "^0.1.12",
     "zod": "^3.23.8"
